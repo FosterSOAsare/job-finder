@@ -5,6 +5,7 @@ import re
 import sys
 
 from export import Export
+from leadmap import LeadMap
 from scan import Scan
 from sitecheck import SiteCheck
 
@@ -136,6 +137,8 @@ def main(argv: list[str] | None = None) -> int:
         return SiteCheck.from_args(args).run()
     if args.command == "export":
         return Export.from_args(args).run()
+    if args.command == "map":
+        return LeadMap.from_args(args).run()
 
     # Other commands are not implemented yet; show what was parsed.
     print(f"command: {args.command}")
