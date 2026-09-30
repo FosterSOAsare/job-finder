@@ -4,7 +4,9 @@ import argparse
 import re
 import sys
 
+from export import Export
 from scan import Scan
+from sitecheck import SiteCheck
 
 LEVELS = ("none", "social", "weak", "has_site")
 DEFAULT_DB = "finder.db"
@@ -57,10 +59,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     # scan
     scan = sub.add_parser("scan", help="scrape Google Maps around a location")
+    # Only one of --near or --coords can be given, but one is required. 
     where = scan.add_mutually_exclusive_group(required=True)
     where.add_argument("--near", metavar="ADDRESS", help='center of the search, e.g. "Columbus, OH"')
     where.add_argument("--coords", metavar="LAT,LNG", help="center as coordinates, e.g. 39.96,-83.00 (use --coords=-33.8,151.2 "
                             "when the latitude is negative)")
+    
     scan.add_argument("--radius", type=parse_radius, default=parse_radius("5km"),
                       help="search radius: 5km, 800m, 3mi (default: 5km)")
     scan.add_argument("--categories", type=parse_list, required=True,
@@ -78,13 +82,16 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--timeout", type=float, default=10.0, help="seconds per request (default: 10)")
     check.add_argument("--recheck", action="store_true", help="recheck sites already checked")
 
-    # export
+    # export: write open businesses at the chosen levels to a CSV file (opens in
+    # Excel / Google Sheets), best leads first.
     export = sub.add_parser("export", help="export leads to CSV")
-    export.add_argument("--levels", type=parse_levels, default=["none", "social"],
-                        help="comma-separated levels to include (default: none,social)")
-    export.add_argument("--min-reviews", type=int, default=0, help="minimum review count (default: 0)")
-    export.add_argument("--min-rating", type=float, default=0.0, help="minimum rating (default: 0)")
-    export.add_argument("--category", type=parse_list, help="only these categories")
+    export.add_argument("--levels", type=parse_levels, default=["none", "social", "weak"],
+                        help="comma-separated levels to include (default: none,social,weak)")
+    export.add_argument("--min-rating", type=float, default=0.0,
+                        help="minimum Google rating; unrated places are left out when set (default: 0)")
+    export.add_argument("--category", type=parse_list,
+                        help='only places found by these search terms or with these Google categories, '
+                             'e.g. "barber,Barber shop"')
     export.add_argument("-o", "--output", default="leads.csv", help="output file (default: leads.csv)")
 
     # map
@@ -114,12 +121,21 @@ def validate(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Windows consoles default to a limited encoding; business names often contain
+    # characters like ’ or é that would otherwise crash print().
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
     parser = build_parser()
     args = parser.parse_args(argv)
     validate(args, parser)
 
     if args.command == "scan":
         return Scan.from_args(args).run()
+    if args.command == "check-sites":
+        return SiteCheck.from_args(args).run()
+    if args.command == "export":
+        return Export.from_args(args).run()
 
     # Other commands are not implemented yet; show what was parsed.
     print(f"command: {args.command}")

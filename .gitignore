@@ -1,0 +1,7 @@
+__pycache__/
+*.db
+.browser-profile/
+leads.csv
+leads.html
+db.py
+.env
